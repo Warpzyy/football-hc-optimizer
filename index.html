@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulasi Optimasi Formasi Sepak Bola — Hill Climbing</title>
+<meta name="description" content="Simulasi algoritma Hill Climbing untuk optimasi formasi dan penempatan posisi pemain sepak bola. Mata Kuliah Kecerdasan Buatan.">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  /* ===== RESET & BASE ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --green-field: #2d5a27;
+    --green-line: rgba(255,255,255,0.28);
+    --gk: #EF9F27; --cb: #378ADD; --mf: #7F77DD; --fw: #E24B4A;
+    --bg: #f5f5f3; --surface: #ffffff; --surface2: #f0efed;
+    --border: rgba(0,0,0,0.1); --border2: rgba(0,0,0,0.06);
+    --text: #1a1a18; --text2: #6b6b68; --text3: #9b9b98;
+    --blue: #378ADD; --purple: #7F77DD; --amber: #EF9F27;
+    --green: #1D9E75; --red: #E24B4A;
+    --radius: 10px; --radius-sm: 6px;
+    --font: 'Segoe UI', system-ui, sans-serif;
+    --mono: 'Cascadia Code', 'Fira Code', monospace;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  @media(prefers-color-scheme:dark){
+    :root{
+      --bg:#141412; --surface:#1e1e1b; --surface2:#252522;
+      --border:rgba(255,255,255,0.1); --border2:rgba(255,255,255,0.05);
+      --text:#f0efe8; --text2:#9b9b94; --text3:#6b6b64;
+    }
+  }
+  html, body { height: 100%; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+
+  /* ===== HEADER ===== */
+  header {
+    background: var(--surface);
+    border-bottom: 0.5px solid var(--border);
+    padding: 0 24px;
+    display: flex; align-items: center; gap: 16px;
+    height: 56px; position: sticky; top: 0; z-index: 100;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 600; font-size: 15px; color: var(--text);
+    text-decoration: none;
+  }
+  .logo-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--green-field);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .header-meta {
+    margin-left: auto; font-size: 12px; color: var(--text3);
+    display: flex; align-items: center; gap: 16px;
+  }
+  .badge-course {
+    background: var(--surface2); border: 0.5px solid var(--border);
+    border-radius: var(--radius-sm); padding: 3px 8px;
+    font-size: 11px; color: var(--text2);
+  }
+
+  /* ===== LAYOUT ===== */
+  .main { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+  /* ===== TABS ===== */
+  .tabs-wrap { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
+  .tab {
+    padding: 7px 16px; font-size: 13px; font-weight: 500;
+    border: 0.5px solid var(--border); border-radius: var(--radius-sm);
+    cursor: pointer; background: transparent; color: var(--text2);
+    transition: all 0.15s; font-family: var(--font);
+  }
+  .tab:hover { background: var(--surface2); color: var(--text); }
+  .tab.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ===== GRID ===== */
+  .g2 { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; }
+  .g3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 14px; }
+  .g4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 14px; }
+
+  /* ===== CARD ===== */
+  .card {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: var(--radius); padding: 16px;
+    box-shadow: var(--shadow);
+  }
+  .card + .card { margin-top: 14px; }
+
+  /* ===== SECTION LABEL ===== */
+  .sec {
+    font-size: 11px; font-weight: 600; color: var(--text3);
+    text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px;
+  }
+
+  /* ===== METRIC CARDS ===== */
+  .metric {
+    background: var(--surface2); border-radius: var(--radius-sm);
+    padding: 10px 14px;
+  }
+  .mlabel { font-size: 11px; color: var(--text3); margin-bottom: 2px; }
+  .mval { font-size: 20px; font-weight: 600; color: var(--text); }
+
+  /* ===== PARAM ROW ===== */
+  .prow { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .plabel { font-size: 12px; color: var(--text2); min-width: 130px; }
+  .pval { font-size: 12px; font-weight: 600; min-width: 36px; text-align: right; color: var(--text); }
+
+  /* ===== INPUTS ===== */
+  select, input[type=text] {
+    padding: 6px 10px; font-size: 13px;
+    border: 0.5px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--surface2); color: var(--text);
+    font-family: var(--font); outline: none;
+    transition: border-color 0.15s;
+  }
+  select:focus, input[type=text]:focus { border-color: var(--blue); }
+  input[type=range] {
+    flex: 1; accent-color: var(--blue);
+    height: 4px; cursor: pointer;
+  }
+
+  /* ===== BUTTONS ===== */
+  .btn {
+    padding: 7px 16px; font-size: 13px; font-weight: 500;
+    border: 0.5px solid var(--border); border-radius: var(--radius-sm);
+    cursor: pointer; background: transparent; color: var(--text);
+    font-family: var(--font); transition: all 0.15s; line-height: 1;
+  }
+  .btn:hover { background: var(--surface2); }
+  .btn:active { transform: scale(0.98); }
+  .btn.pri { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .btn.pri:hover { opacity: 0.85; }
+  .btn-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+  /* ===== BADGES ===== */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; padding: 3px 8px;
+    border-radius: var(--radius-sm); font-weight: 500;
+  }
+  .b-green { background: #e1f5ee; color: #0f6e56; }
+  .b-red { background: #fcebeb; color: #a32d2d; }
+  .b-blue { background: #e6f1fb; color: #185fa5; }
+  .b-amber { background: #faeeda; color: #854f0b; }
+  .b-purple { background: #eeedfe; color: #534ab7; }
+  @media(prefers-color-scheme:dark){
+    .b-green{background:#04342c;color:#5dcaa5}
+    .b-red{background:#501313;color:#f09595}
+    .b-blue{background:#042c53;color:#85b7eb}
+    .b-amber{background:#412402;color:#fac775}
+    .b-purple{background:#26215c;color:#afa9ec}
+  }
+
+  /* ===== LOG ===== */
+  .log {
+    background: var(--surface2); border-radius: var(--radius-sm);
+    padding: 8px 10px; max-height: 140px; overflow-y: auto;
+    font-size: 11px; font-family: var(--mono); color: var(--text3);
+    line-height: 2; border: 0.5px solid var(--border2);
+  }
+  .le { border-bottom: 0.5px solid var(--border2); padding: 1px 0; }
+  .le:last-child { border: none; }
+  .le.good { color: var(--green); }
+  .le.bad { color: var(--red); }
+  .le.warn { color: var(--amber); }
+
+  /* ===== FIELD ===== */
+  .field-wrap {
+    background: var(--green-field); border-radius: var(--radius-sm);
+    padding: 8px; overflow: hidden;
+  }
+  .field-wrap canvas { display: block; width: 100%; height: auto; }
+
+  /* ===== PLAYER TABLE ===== */
+  .ptbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .ptbl th { font-size: 11px; color: var(--text3); font-weight: 600; text-align: left; padding: 6px 8px; border-bottom: 0.5px solid var(--border); }
+  .ptbl td { padding: 6px 8px; border-bottom: 0.5px solid var(--border2); color: var(--text); }
+  .ptbl tr:last-child td { border: none; }
+  .ptbl tr:hover td { background: var(--surface2); }
+
+  .abar { height: 4px; border-radius: 2px; background: var(--border); position: relative; width: 52px; display: inline-block; vertical-align: middle; }
+  .afill { height: 100%; border-radius: 2px; position: absolute; top: 0; left: 0; }
+
+  /* ===== COMPARE TABLE ===== */
+  .cmptbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .cmptbl th { font-size: 11px; color: var(--text3); font-weight: 600; text-align: left; padding: 6px 10px; border-bottom: 0.5px solid var(--border); }
+  .cmptbl td { padding: 8px 10px; border-bottom: 0.5px solid var(--border2); }
+  .cmptbl tr:last-child td { border: none; }
+  .winner { color: var(--green); font-weight: 600; }
+
+  /* ===== FORMATION INFO ===== */
+  .finfo {
+    background: var(--surface2); border-radius: var(--radius-sm);
+    padding: 10px 12px; font-size: 12px; color: var(--text2);
+    line-height: 1.7; border: 0.5px solid var(--border2);
+  }
+
+  /* ===== ALGO DESC ===== */
+  .algo-desc {
+    background: var(--surface2); border-left: 2px solid var(--blue);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    padding: 8px 12px; font-size: 12px; color: var(--text2);
+    line-height: 1.7; margin-top: 8px;
+  }
+
+  /* ===== COMPARE MINI FIELDS ===== */
+  .cmp-fields-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+  .cmp-field-label { font-size: 10px; text-align: center; color: var(--text3); margin-bottom: 4px; font-weight: 600; }
+
+  /* ===== LEGEND ===== */
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: var(--text3); margin-top: 8px; }
+  .ldot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 4px; vertical-align: middle; }
+
+  /* ===== FOOTER ===== */
+  footer {
+    text-align: center; padding: 24px 16px;
+    font-size: 11px; color: var(--text3);
+    border-top: 0.5px solid var(--border);
+    margin-top: 32px;
+  }
+
+  /* ===== RESPONSIVE ===== */
+  @media(max-width:700px){
+    .g2 { grid-template-columns: 1fr; }
+    .g3 { grid-template-columns: repeat(2,1fr); }
+    .g4 { grid-template-columns: repeat(2,1fr); }
+    .cmp-fields-grid { grid-template-columns: 1fr; }
+    header { padding: 0 12px; }
+    .header-meta { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="logo" href="#">
+    <div class="logo-icon">⚽</div>
+    Optimasi Formasi Sepak Bola
+  </a>
+  <div class="header-meta">
+    <span class="badge-course">Kecerdasan Buatan</span>
+    <span class="badge-course">Hill Climbing Algorithm</span>
+  </div>
+</header>
+
+<main class="main">
+
+  <!-- TABS -->
+  <div class="tabs-wrap">
+    <button class="tab active" onclick="sw('setup')">⚙ Data Pemain</button>
+    <button class="tab" onclick="sw('simple')">Simple HC</button>
+    <button class="tab" onclick="sw('steepest')">Steepest-Ascent HC</button>
+    <button class="tab" onclick="sw('stochastic')">Stochastic HC</button>
+    <button class="tab" onclick="sw('compare')">📊 Perbandingan</button>
+  </div>
+
+  <!-- ===================== PANEL: DATA PEMAIN ===================== -->
+  <div id="panel-setup" class="panel active">
+    <div class="g2">
+      <div class="card">
+        <div class="sec">Data 11 Pemain</div>
+        <div style="overflow-x:auto">
+          <table class="ptbl" id="ptbl">
+            <thead><tr><th>#</th><th>Nama</th><th>Pos. Asli</th><th>Serangan</th><th>Pertahanan</th><th>Kecepatan</th><th>Teknik</th></tr></thead>
+            <tbody id="ptbody"></tbody>
+          </table>
+        </div>
+        <div class="btn-row">
+          <button class="btn" onclick="randomizePlayers()">🔀 Acak Atribut</button>
+          <button class="btn pri" onclick="sw('simple')">Lanjut Simulasi →</button>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="sec">Formasi &amp; Bobot Strategi</div>
+          <div class="prow">
+            <span class="plabel">Formasi Target</span>
+            <select id="sel-formation" onchange="updateFormationInfo()">
+              <option value="442">4-4-2</option>
+              <option value="433">4-3-3</option>
+              <option value="352">3-5-2</option>
+              <option value="451">4-5-1</option>
+              <option value="532">5-3-2</option>
+            </select>
+          </div>
+          <div class="prow">
+            <span class="plabel">Bobot Serangan</span>
+            <input type="range" min="1" max="5" step="1" value="3" id="w-atk" oninput="document.getElementById('wv-atk').textContent=this.value">
+            <span class="pval" id="wv-atk">3</span>
+          </div>
+          <div class="prow">
+            <span class="plabel">Bobot Pertahanan</span>
+            <input type="range" min="1" max="5" step="1" value="3" id="w-def" oninput="document.getElementById('wv-def').textContent=this.value">
+            <span class="pval" id="wv-def">3</span>
+          </div>
+          <div class="prow">
+            <span class="plabel">Bobot Kecepatan</span>
+            <input type="range" min="1" max="5" step="1" value="2" id="w-spd" oninput="document.getElementById('wv-spd').textContent=this.value">
+            <span class="pval" id="wv-spd">2</span>
+          </div>
+          <div class="prow">
+            <span class="plabel">Bobot Teknik</span>
+            <input type="range" min="1" max="5" step="1" value="2" id="w-tec" oninput="document.getElementById('wv-tec').textContent=this.value">
+            <span class="pval" id="wv-tec">2</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="sec">Info Formasi</div>
+          <div class="finfo" id="formation-info"></div>
+          <div class="legend" style="margin-top:12px">
+            <span><span class="ldot" style="background:var(--gk)"></span>Kiper (GK)</span>
+            <span><span class="ldot" style="background:var(--cb)"></span>Bek (CB)</span>
+            <span><span class="ldot" style="background:var(--mf)"></span>Gelandang (MF)</span>
+            <span><span class="ldot" style="background:var(--fw)"></span>Penyerang (FW)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== PANEL: SIMPLE HC ===================== -->
+  <div id="panel-simple" class="panel">
+    <div class="g2">
+      <div class="card">
+        <div class="sec">Parameter — Simple Hill Climbing</div>
+        <div class="prow">
+          <span class="plabel">Formasi</span>
+          <select id="shc-form">
+            <option value="442">4-4-2</option><option value="433">4-3-3</option>
+            <option value="352">3-5-2</option><option value="451">4-5-1</option><option value="532">5-3-2</option>
+          </select>
+        </div>
+        <div class="prow">
+          <span class="plabel">Max Iterasi</span>
+          <input type="range" min="10" max="500" step="10" value="100" id="shc-iter" oninput="document.getElementById('shc-iter-v').textContent=this.value">
+          <span class="pval" id="shc-iter-v">100</span>
+        </div>
+        <div class="algo-desc">
+          <b>Cara kerja:</b> Pilih 2 pemain secara acak, tukar posisinya. Terima jika skor tim meningkat, tolak jika tidak. Berhenti saat tidak ada perbaikan (<em>local optima</em> atau plateau).
+        </div>
+        <div class="btn-row">
+          <button class="btn pri" onclick="runSHC()">▶ Jalankan</button>
+          <button class="btn" onclick="stepSHC()">→ Step</button>
+          <button class="btn" onclick="resetSHC()">↺ Reset</button>
+        </div>
+        <div style="margin-top:12px" id="shc-status"></div>
+        <div class="g3" style="margin-top:12px">
+          <div class="metric"><div class="mlabel">Iterasi</div><div class="mval" id="shc-m-iter">—</div></div>
+          <div class="metric"><div class="mlabel">Skor Tim</div><div class="mval" id="shc-m-score">—</div></div>
+          <div class="metric"><div class="mlabel">Peningkatan</div><div class="mval" id="shc-m-imp">—</div></div>
+        </div>
+        <div class="sec">Log Iterasi</div>
+        <div class="log" id="shc-log"></div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="sec">Lapangan — Formasi Saat Ini</div>
+          <div class="field-wrap">
+            <canvas id="field-shc" width="400" height="280" role="img" aria-label="Visualisasi lapangan formasi simple hill climbing"></canvas>
+          </div>
+          <div class="legend" style="margin-top:10px">
+            <span><span class="ldot" style="background:var(--gk)"></span>GK</span>
+            <span><span class="ldot" style="background:var(--cb)"></span>CB</span>
+            <span><span class="ldot" style="background:var(--mf)"></span>MF</span>
+            <span><span class="ldot" style="background:var(--fw)"></span>FW</span>
+            <span style="font-size:10px;color:var(--text3)">● Lingkar putih = posisi sesuai preferensi</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="sec">Grafik Konvergensi Skor</div>
+          <div style="position:relative;width:100%;height:140px">
+            <canvas id="conv-shc" role="img" aria-label="Grafik konvergensi skor simple hill climbing"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== PANEL: STEEPEST ASCENT ===================== -->
+  <div id="panel-steepest" class="panel">
+    <div class="g2">
+      <div class="card">
+        <div class="sec">Parameter — Steepest-Ascent Hill Climbing</div>
+        <div class="prow">
+          <span class="plabel">Formasi</span>
+          <select id="sahc-form">
+            <option value="442">4-4-2</option><option value="433">4-3-3</option>
+            <option value="352">3-5-2</option><option value="451">4-5-1</option><option value="532">5-3-2</option>
+          </select>
+        </div>
+        <div class="prow">
+          <span class="plabel">Max Iterasi</span>
+          <input type="range" min="5" max="100" step="5" value="30" id="sahc-iter" oninput="document.getElementById('sahc-iter-v').textContent=this.value">
+          <span class="pval" id="sahc-iter-v">30</span>
+        </div>
+        <div class="algo-desc">
+          <b>Cara kerja:</b> Evaluasi <em>semua</em> kemungkinan tukar posisi antar pemain (55 kombinasi). Pilih swap yang menghasilkan kenaikan skor terbesar. Lebih lambat tapi lebih teliti.
+        </div>
+        <div class="btn-row">
+          <button class="btn pri" onclick="runSAHC()">▶ Jalankan</button>
+          <button class="btn" onclick="resetSAHC()">↺ Reset</button>
+        </div>
+        <div style="margin-top:12px" id="sahc-status"></div>
+        <div class="g3" style="margin-top:12px">
+          <div class="metric"><div class="mlabel">Iterasi</div><div class="mval" id="sahc-m-iter">—</div></div>
+          <div class="metric"><div class="mlabel">Skor Tim</div><div class="mval" id="sahc-m-score">—</div></div>
+          <div class="metric"><div class="mlabel">Total Evaluasi</div><div class="mval" id="sahc-m-eval">—</div></div>
+        </div>
+        <div class="sec">Log Iterasi</div>
+        <div class="log" id="sahc-log"></div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="sec">Lapangan — Formasi Saat Ini</div>
+          <div class="field-wrap">
+            <canvas id="field-sahc" width="400" height="280" role="img" aria-label="Visualisasi lapangan formasi steepest-ascent HC"></canvas>
+          </div>
+          <div class="legend" style="margin-top:10px">
+            <span><span class="ldot" style="background:var(--gk)"></span>GK</span>
+            <span><span class="ldot" style="background:var(--cb)"></span>CB</span>
+            <span><span class="ldot" style="background:var(--mf)"></span>MF</span>
+            <span><span class="ldot" style="background:var(--fw)"></span>FW</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="sec">Grafik Konvergensi Skor</div>
+          <div style="position:relative;width:100%;height:140px">
+            <canvas id="conv-sahc" role="img" aria-label="Grafik konvergensi skor steepest-ascent"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== PANEL: STOCHASTIC HC ===================== -->
+  <div id="panel-stochastic" class="panel">
+    <div class="g2">
+      <div class="card">
+        <div class="sec">Parameter — Stochastic Hill Climbing</div>
+        <div class="prow">
+          <span class="plabel">Formasi</span>
+          <select id="sthc-form">
+            <option value="442">4-4-2</option><option value="433">4-3-3</option>
+            <option value="352">3-5-2</option><option value="451">4-5-1</option><option value="532">5-3-2</option>
+          </select>
+        </div>
+        <div class="prow">
+          <span class="plabel">Max Iterasi</span>
+          <input type="range" min="50" max="1000" step="50" value="300" id="sthc-iter" oninput="document.getElementById('sthc-iter-v').textContent=this.value">
+          <span class="pval" id="sthc-iter-v">300</span>
+        </div>
+        <div class="prow">
+          <span class="plabel">Suhu Awal (T)</span>
+          <input type="range" min="0.1" max="5" step="0.1" value="2" id="sthc-temp" oninput="document.getElementById('sthc-temp-v').textContent=parseFloat(this.value).toFixed(1)">
+          <span class="pval" id="sthc-temp-v">2.0</span>
+        </div>
+        <div class="algo-desc">
+          <b>Cara kerja:</b> Pilih swap acak, selalu terima jika lebih baik. Jika lebih buruk, terima dengan probabilitas <em>e^(Δ/T)</em>. Suhu T mengontrol seberapa sering menerima solusi buruk — bisa lolos dari <em>local optima</em>.
+        </div>
+        <div class="btn-row">
+          <button class="btn pri" onclick="runSTHC()">▶ Jalankan</button>
+          <button class="btn" onclick="resetSTHC()">↺ Reset</button>
+        </div>
+        <div style="margin-top:12px" id="sthc-status"></div>
+        <div class="g3" style="margin-top:12px">
+          <div class="metric"><div class="mlabel">Iterasi</div><div class="mval" id="sthc-m-iter">—</div></div>
+          <div class="metric"><div class="mlabel">Skor Terbaik</div><div class="mval" id="sthc-m-score">—</div></div>
+          <div class="metric"><div class="mlabel">Swap Diterima</div><div class="mval" id="sthc-m-acc">—</div></div>
+        </div>
+        <div class="sec">Log Iterasi</div>
+        <div class="log" id="sthc-log"></div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="sec">Lapangan — Formasi Terbaik</div>
+          <div class="field-wrap">
+            <canvas id="field-sthc" width="400" height="280" role="img" aria-label="Visualisasi lapangan formasi stochastic HC"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="sec">Grafik Konvergensi Skor</div>
+          <div style="position:relative;width:100%;height:140px">
+            <canvas id="conv-sthc" role="img" aria-label="Grafik konvergensi skor stochastic HC"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== PANEL: PERBANDINGAN ===================== -->
+  <div id="panel-compare" class="panel">
+    <div class="card" style="margin-bottom:14px">
+      <div class="sec">Konfigurasi Perbandingan</div>
+      <div class="g2">
+        <div>
+          <div class="prow">
+            <span class="plabel">Formasi</span>
+            <select id="cmp-form">
+              <option value="442">4-4-2</option><option value="433">4-3-3</option>
+              <option value="352">3-5-2</option><option value="451">4-5-1</option><option value="532">5-3-2</option>
+            </select>
+          </div>
+          <div class="prow">
+            <span class="plabel">Max Iterasi</span>
+            <input type="range" min="50" max="500" step="50" value="200" id="cmp-iter" oninput="document.getElementById('cmp-iter-v').textContent=this.value">
+            <span class="pval" id="cmp-iter-v">200</span>
+          </div>
+        </div>
+        <div>
+          <div class="prow">
+            <span class="plabel">Jumlah Run</span>
+            <input type="range" min="1" max="10" step="1" value="5" id="cmp-runs" oninput="document.getElementById('cmp-runs-v').textContent=this.value">
+            <span class="pval" id="cmp-runs-v">5</span>
+          </div>
+          <div class="prow">
+            <span class="plabel">Suhu Stochastic</span>
+            <input type="range" min="0.5" max="5" step="0.5" value="2" id="cmp-temp" oninput="document.getElementById('cmp-temp-v').textContent=parseFloat(this.value).toFixed(1)">
+            <span class="pval" id="cmp-temp-v">2.0</span>
+          </div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn pri" onclick="runCompare()">📊 Jalankan Perbandingan</button>
+      </div>
+    </div>
+
+    <div class="g2" style="margin-bottom:14px">
+      <div class="card">
+        <div class="sec">Grafik Konvergensi Perbandingan</div>
+        <div style="position:relative;width:100%;height:200px">
+          <canvas id="conv-cmp" role="img" aria-label="Grafik perbandingan konvergensi ketiga varian HC"></canvas>
+        </div>
+        <div class="legend" style="margin-top:10px">
+          <span><span class="ldot" style="background:#378ADD;border-radius:2px"></span>Simple HC</span>
+          <span><span class="ldot" style="background:#7F77DD;border-radius:2px"></span>Steepest-Ascent</span>
+          <span><span class="ldot" style="background:#EF9F27;border-radius:2px"></span>Stochastic HC</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="sec">Formasi Terbaik Tiap Algoritma</div>
+        <div class="cmp-fields-grid">
+          <div><div class="cmp-field-label">Simple HC</div><div class="field-wrap"><canvas id="cmpf-shc" width="200" height="140" role="img" aria-label="Formasi simple HC"></canvas></div></div>
+          <div><div class="cmp-field-label">Steepest-Ascent</div><div class="field-wrap"><canvas id="cmpf-sahc" width="200" height="140" role="img" aria-label="Formasi steepest ascent"></canvas></div></div>
+          <div><div class="cmp-field-label">Stochastic HC</div><div class="field-wrap"><canvas id="cmpf-sthc" width="200" height="140" role="img" aria-label="Formasi stochastic HC"></canvas></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sec">Tabel Perbandingan Performa</div>
+      <div style="overflow-x:auto">
+        <table class="cmptbl">
+          <thead><tr><th>Algoritma</th><th>Skor Terbaik</th><th>Skor Rata-rata</th><th>Iterasi Konvergensi</th><th>Total Evaluasi</th><th>Kecenderungan</th></tr></thead>
+          <tbody id="cmp-tbody"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text3)">Tekan "Jalankan Perbandingan" untuk melihat hasil</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  Simulasi Optimasi Formasi Sepak Bola — Hill Climbing Algorithm &nbsp;|&nbsp; Mata Kuliah Kecerdasan Buatan
+</footer>
+
+<script>
+/* ============================
+   DATA & CONSTANTS
+   ============================ */
+const FORMATIONS = {
+  '442': { label:'4-4-2', slots:['GK','CB','CB','CB','CB','MF','MF','MF','MF','FW','FW'], desc:'Formasi klasik yang seimbang. 4 bek solid, 4 gelandang mengontrol lini tengah, 2 penyerang untuk serangan. Cocok untuk tim yang mengutamakan keseimbangan antara serangan dan pertahanan.' },
+  '433': { label:'4-3-3', slots:['GK','CB','CB','CB','CB','MF','MF','MF','FW','FW','FW'], desc:'Formasi menyerang dengan 3 penyerang aktif. Cocok untuk tim dengan pemain sayap cepat dan kreatif. Gelandang tengah harus kuat dalam pressing dan distribusi bola.' },
+  '352': { label:'3-5-2', slots:['GK','CB','CB','CB','MF','MF','MF','MF','MF','FW','FW'], desc:'3 bek solid dengan 5 gelandang yang mendominasi lini tengah. 2 penyerang bergerak dinamis. Membutuhkan wing-back aktif yang bisa menyerang dan bertahan.' },
+  '451': { label:'4-5-1', slots:['GK','CB','CB','CB','CB','MF','MF','MF','MF','MF','FW'], desc:'Formasi bertahan dengan 1 striker tunggal. 5 gelandang mengontrol tengah lapangan dan membantu pertahanan. Cocok untuk bermain counter-attack yang efisien.' },
+  '532': { label:'5-3-2', slots:['GK','CB','CB','CB','CB','CB','MF','MF','MF','FW','FW'], desc:'5 bek sangat defensif dengan 3 gelandang dan 2 penyerang. Cocok untuk tim yang bermain counter-attack atau menghadapi lawan yang dominan secara ofensif.' }
+};
+
+const POS_WEIGHTS = {
+  GK:  { atk:0, def:5, spd:2, tec:2 },
+  CB:  { atk:1, def:5, spd:2, tec:2 },
+  MF:  { atk:3, def:3, spd:3, tec:4 },
+  FW:  { atk:5, def:1, spd:4, tec:3 }
+};
+
+const NAMES = ['Rizky','Bagas','Fajar','Dendi','Aryo','Wahyu','Hafiz','Budi','Rian','Sandi','Eka'];
+const PREF_POS = ['GK','CB','CB','CB','MF','MF','MF','MF','FW','FW','FW'];
+const COLORS = { GK:'#EF9F27', CB:'#378ADD', MF:'#7F77DD', FW:'#E24B4A' };
+
+let players = [];
+
+function ri(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+function ra(){ return ri(45,95); }
+
+function initPlayers(){
+  players = NAMES.map((n,i)=>({ id:i, name:n, pref:PREF_POS[i], atk:ra(), def:ra(), spd:ra(), tec:ra() }));
+}
+
+function randomizePlayers(){
+  players.forEach(p=>{ p.atk=ra(); p.def=ra(); p.spd=ra(); p.tec=ra(); });
+  renderPlayerTable();
+}
+
+function renderPlayerTable(){
+  const bmap = { GK:'b-amber', CB:'b-blue', MF:'b-purple', FW:'b-red' };
+  document.getElementById('ptbody').innerHTML = players.map(p=>`
+    <tr>
+      <td style="font-weight:600;color:var(--text3)">${p.id+1}</td>
+      <td style="font-weight:500">${p.name}</td>
+      <td><span class="badge ${bmap[p.pref]}">${p.pref}</span></td>
+      <td><span class="abar"><span class="afill" style="width:${p.atk}%;background:var(--fw)"></span></span> ${p.atk}</td>
+      <td><span class="abar"><span class="afill" style="width:${p.def}%;background:var(--cb)"></span></span> ${p.def}</td>
+      <td><span class="abar"><span class="afill" style="width:${p.spd}%;background:var(--amber)"></span></span> ${p.spd}</td>
+      <td><span class="abar"><span class="afill" style="width:${p.tec}%;background:var(--mf)"></span></span> ${p.tec}</td>
+    </tr>`).join('');
+}
+
+function updateFormationInfo(){
+  const f = document.getElementById('sel-formation').value;
+  document.getElementById('formation-info').textContent = FORMATIONS[f]?.desc || '';
+}
+
+function getWeights(){
+  return {
+    atk: parseInt(document.getElementById('w-atk').value),
+    def: parseInt(document.getElementById('w-def').value),
+    spd: parseInt(document.getElementById('w-spd').value),
+    tec: parseInt(document.getElementById('w-tec').value)
+  };
+}
+
+/* ============================
+   FITNESS FUNCTION
+   ============================ */
+function calcScore(assignment, formKey){
+  const slots = FORMATIONS[formKey].slots;
+  const w = getWeights();
+  let score = 0;
+  assignment.forEach((pid, si) => {
+    const p = players[pid];
+    const pos = slots[si];
+    const pw = POS_WEIGHTS[pos];
+    const wSum = pw.atk + pw.def + pw.spd + pw.tec;
+    const posScore = (pw.atk*p.atk + pw.def*p.def + pw.spd*p.spd + pw.tec*p.tec) / wSum;
+    const prefBonus = p.pref === pos ? 1.15 : 1.0;
+    score += posScore * prefBonus;
+  });
+  return Math.round(score * 10) / 10;
+}
+
+function initialAssignment(){ return players.map((_,i)=>i); }
+
+/* ============================
+   FIELD DRAWING
+   ============================ */
+function drawField(canvasId, assignment, formKey){
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  // background
+  ctx.fillStyle = '#2d5a27'; ctx.fillRect(0,0,W,H);
+
+  // field markings
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1.2;
+  ctx.strokeRect(6,6,W-12,H-12);
+  ctx.beginPath(); ctx.arc(W/2,H/2,H*0.16,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W/2,6); ctx.lineTo(W/2,H-6); ctx.stroke();
+  ctx.strokeRect(6,H*0.28,W*0.1,H*0.44);
+  ctx.strokeRect(W-6-W*0.1,H*0.28,W*0.1,H*0.44);
+  ctx.beginPath(); ctx.arc(6,H/2,H*0.06,Math.PI*-0.5,Math.PI*0.5); ctx.stroke();
+  ctx.beginPath(); ctx.arc(W-6,H/2,H*0.06,Math.PI*0.5,Math.PI*1.5); ctx.stroke();
+
+  const slots = FORMATIONS[formKey].slots;
+  const posLayout = computeLayout(formKey, W, H);
+  const r = Math.min(W,H) * 0.062;
+
+  posLayout.forEach((pos, si) => {
+    const pid = assignment[si];
+    const p = players[pid];
+    const slotType = slots[si];
+    const isPref = p.pref === slotType;
+
+    // shadow
+    ctx.beginPath(); ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.arc(pos.x+1.5, pos.y+1.5, r, 0, Math.PI*2); ctx.fill();
+
+    // circle
+    ctx.beginPath(); ctx.fillStyle = COLORS[slotType];
+    ctx.arc(pos.x, pos.y, r, 0, Math.PI*2); ctx.fill();
+    if (isPref){ ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=2; ctx.stroke(); }
+
+    // name
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.round(r*0.52)}px Segoe UI,sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(p.name.slice(0,3).toUpperCase(), pos.x, pos.y);
+
+    // position label
+    ctx.font = `${Math.round(r*0.42)}px Segoe UI,sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillText(slotType, pos.x, pos.y + r + 8);
+  });
+}
+
+function computeLayout(formKey, W, H){
+  const slots = FORMATIONS[formKey].slots;
+  const lines = { GK:[], CB:[], MF:[], FW:[] };
+  slots.forEach((s,i) => lines[s].push(i));
+  const xMap = { GK:W*0.08, CB:W*0.26, MF:W*0.52, FW:W*0.82 };
+  const result = new Array(slots.length);
+  ['GK','CB','MF','FW'].forEach(pos => {
+    lines[pos].forEach((si, k) => {
+      result[si] = { x: xMap[pos], y: H*(k+1)/(lines[pos].length+1) };
+    });
+  });
+  return result;
+}
+
+/* ============================
+   ALGORITHMS
+   ============================ */
+function simpleHC(formKey, maxIter){
+  let asgn = initialAssignment();
+  let score = calcScore(asgn, formKey);
+  const history = [score], log = [];
+  let iter = 0, status = 'local_optima';
+  for (let i=0; i<maxIter; i++){
+    let a = ri(0,10), b = ri(0,10);
+    if (a===b){ i--; continue; }
+    const na = [...asgn]; [na[a],na[b]] = [na[b],na[a]];
+    const ns = calcScore(na, formKey);
+    iter++;
+    if (ns > score){
+      asgn = na; score = ns;
+      log.push({ type:'good', msg:`Iter ${iter}: Tukar ${players[na[b]].name}↔${players[na[a]].name} → ${score.toFixed(1)}` });
+    } else {
+      log.push({ type:'warn', msg:`Iter ${iter}: Tolak swap (${ns.toFixed(1)} ≤ ${score.toFixed(1)})` });
+    }
+    history.push(score);
+    if (i>15 && history.slice(-10).every(v=>v===history[history.length-1])){ status='local_optima'; break; }
+    if (i===maxIter-1) status='max_iter';
+  }
+  return { asgn, score, history, log, iter, status };
+}
+
+function steepestAHC(formKey, maxIter){
+  let asgn = initialAssignment();
+  let score = calcScore(asgn, formKey);
+  const history = [score], log = [];
+  let iter = 0, totalEval = 0, status = 'local_optima';
+  for (let i=0; i<maxIter; i++){
+    let bestSwap = null, bestScore = score;
+    for (let a=0; a<11; a++) for (let b=a+1; b<11; b++){
+      const na=[...asgn]; [na[a],na[b]]=[na[b],na[a]];
+      const ns = calcScore(na, formKey); totalEval++;
+      if (ns > bestScore){ bestScore=ns; bestSwap=[a,b]; }
+    }
+    iter++;
+    if (!bestSwap){ log.push({ type:'bad', msg:`Iter ${iter}: Tidak ada perbaikan — local optima` }); status='local_optima'; break; }
+    [asgn[bestSwap[0]],asgn[bestSwap[1]]] = [asgn[bestSwap[1]],asgn[bestSwap[0]]];
+    score = bestScore;
+    log.push({ type:'good', msg:`Iter ${iter}: Swap terbaik [${bestSwap}] → skor ${score.toFixed(1)}` });
+    history.push(score);
+    if (i===maxIter-1) status='max_iter';
+  }
+  return { asgn, score, history, log, iter, totalEval, status };
+}
+
+function stochasticHC(formKey, maxIter, temp){
+  let asgn = initialAssignment();
+  let score = calcScore(asgn, formKey);
+  let bestAsgn = [...asgn], bestScore = score;
+  const history = [score], log = [];
+  let accepted = 0;
+  for (let i=0; i<maxIter; i++){
+    let a=ri(0,10), b=ri(0,10);
+    if(a===b) continue;
+    const na=[...asgn]; [na[a],na[b]]=[na[b],na[a]];
+    const ns = calcScore(na, formKey);
+    const delta = ns - score;
+    const prob = delta > 0 ? 1 : Math.exp(delta / temp);
+    if (Math.random() < prob){ asgn=na; score=ns; accepted++; }
+    if (score > bestScore){ bestScore=score; bestAsgn=[...asgn]; log.push({ type:'good', msg:`Iter ${i+1}: Baru terbaik: ${bestScore.toFixed(1)}` }); }
+    history.push(bestScore);
+  }
+  return { asgn:bestAsgn, score:bestScore, history, log, iter:maxIter, accepted, status:'finished' };
+}
+
+/* ============================
+   CHART HELPERS
+   ============================ */
+const charts = {};
+function makeChart(id, data, color){
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id), {
+    type: 'line',
+    data: { labels: data.map((_,i)=>i), datasets:[{ data, borderColor:color, borderWidth:1.8, pointRadius:0, fill:false, tension:0.3 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{
+        x:{ ticks:{color:'#888',maxTicksLimit:6}, grid:{color:'rgba(128,128,128,0.1)'} },
+        y:{ ticks:{color:'#888'}, grid:{color:'rgba(128,128,128,0.1)'} }
+      }
+    }
+  });
+}
+
+function makeCmpChart(id, datasets){
+  if (charts[id]) charts[id].destroy();
+  const len = Math.min(...datasets.map(d=>d.data.length));
+  charts[id] = new Chart(document.getElementById(id), {
+    type: 'line',
+    data: {
+      labels: Array.from({length:len},(_,i)=>i),
+      datasets: datasets.map((d,i)=>({ label:d.label, data:d.data.slice(0,len), borderColor:d.color, borderWidth:2, pointRadius:0, fill:false, tension:0.3, borderDash:[0,4,2][i]?[[4,3],[2,2]][i-1]:[] }))
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{
+        x:{ ticks:{color:'#888',maxTicksLimit:8}, grid:{color:'rgba(128,128,128,0.1)'} },
+        y:{ ticks:{color:'#888'}, grid:{color:'rgba(128,128,128,0.1)'} }
+      }
+    }
+  });
+}
+
+function renderLog(id, entries){
+  const el = document.getElementById(id);
+  el.innerHTML = entries.slice(-30).map(e=>`<div class="le ${e.type}">${e.msg}</div>`).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function renderStatus(id, res){
+  const map = { local_optima:['b-red','Local Optima — algoritma berhenti'], max_iter:['b-blue','Mencapai Max Iterasi'], finished:['b-green','Selesai'] };
+  const [cls, txt] = map[res.status] || ['b-blue', res.status];
+  document.getElementById(id).innerHTML = `<span class="badge ${cls}">${txt} &mdash; Skor: ${res.score.toFixed(1)}</span>`;
+}
+
+/* ============================
+   SIMPLE HC CONTROLS
+   ============================ */
+let shcRes = null;
+function runSHC(){
+  const fk = document.getElementById('shc-form').value;
+  const mi = parseInt(document.getElementById('shc-iter').value);
+  shcRes = simpleHC(fk, mi);
+  document.getElementById('shc-m-iter').textContent = shcRes.iter;
+  document.getElementById('shc-m-score').textContent = shcRes.score.toFixed(1);
+  const imp = ((shcRes.score - shcRes.history[0]) / shcRes.history[0] * 100);
+  document.getElementById('shc-m-imp').textContent = (imp>=0?'+':'')+imp.toFixed(1)+'%';
+  renderStatus('shc-status', shcRes);
+  renderLog('shc-log', shcRes.log);
+  drawField('field-shc', shcRes.asgn, fk);
+  makeChart('conv-shc', shcRes.history, '#378ADD');
+}
+function stepSHC(){
+  const fk = document.getElementById('shc-form').value;
+  if (!shcRes){ shcRes = { asgn:initialAssignment(), score:calcScore(initialAssignment(),fk), history:[calcScore(initialAssignment(),fk)], log:[], iter:0, status:'running' }; }
+  let a=ri(0,10), b=ri(0,10);
+  while(a===b){ b=ri(0,10); }
+  const na=[...shcRes.asgn]; [na[a],na[b]]=[na[b],na[a]];
+  const ns = calcScore(na,fk); shcRes.iter++;
+  if(ns>shcRes.score){ shcRes.asgn=na; shcRes.score=ns; shcRes.log.push({ type:'good', msg:`Step ${shcRes.iter}: Tukar → skor ${ns.toFixed(1)}` }); }
+  else { shcRes.log.push({ type:'warn', msg:`Step ${shcRes.iter}: Tolak swap` }); }
+  shcRes.history.push(shcRes.score);
+  document.getElementById('shc-m-iter').textContent=shcRes.iter;
+  document.getElementById('shc-m-score').textContent=shcRes.score.toFixed(1);
+  renderLog('shc-log',shcRes.log);
+  drawField('field-shc',shcRes.asgn,fk);
+  makeChart('conv-shc',shcRes.history,'#378ADD');
+}
+function resetSHC(){
+  shcRes=null;
+  ['shc-log','shc-status'].forEach(id=>document.getElementById(id).innerHTML='');
+  ['shc-m-iter','shc-m-score','shc-m-imp'].forEach(id=>document.getElementById(id).textContent='—');
+  drawField('field-shc',initialAssignment(),'442');
+  if(charts['conv-shc']){ charts['conv-shc'].destroy(); delete charts['conv-shc']; }
+}
+
+/* ============================
+   STEEPEST ASCENT CONTROLS
+   ============================ */
+let sahcRes = null;
+function runSAHC(){
+  const fk = document.getElementById('sahc-form').value;
+  const mi = parseInt(document.getElementById('sahc-iter').value);
+  sahcRes = steepestAHC(fk, mi);
+  document.getElementById('sahc-m-iter').textContent=sahcRes.iter;
+  document.getElementById('sahc-m-score').textContent=sahcRes.score.toFixed(1);
+  document.getElementById('sahc-m-eval').textContent=sahcRes.totalEval;
+  renderStatus('sahc-status',sahcRes);
+  renderLog('sahc-log',sahcRes.log);
+  drawField('field-sahc',sahcRes.asgn,fk);
+  makeChart('conv-sahc',sahcRes.history,'#7F77DD');
+}
+function resetSAHC(){
+  sahcRes=null;
+  ['sahc-log','sahc-status'].forEach(id=>document.getElementById(id).innerHTML='');
+  ['sahc-m-iter','sahc-m-score','sahc-m-eval'].forEach(id=>document.getElementById(id).textContent='—');
+  drawField('field-sahc',initialAssignment(),'442');
+  if(charts['conv-sahc']){ charts['conv-sahc'].destroy(); delete charts['conv-sahc']; }
+}
+
+/* ============================
+   STOCHASTIC HC CONTROLS
+   ============================ */
+let sthcRes = null;
+function runSTHC(){
+  const fk = document.getElementById('sthc-form').value;
+  const mi = parseInt(document.getElementById('sthc-iter').value);
+  const temp = parseFloat(document.getElementById('sthc-temp').value);
+  sthcRes = stochasticHC(fk, mi, temp);
+  document.getElementById('sthc-m-iter').textContent=sthcRes.iter;
+  document.getElementById('sthc-m-score').textContent=sthcRes.score.toFixed(1);
+  document.getElementById('sthc-m-acc').textContent=sthcRes.accepted;
+  renderStatus('sthc-status',sthcRes);
+  renderLog('sthc-log',sthcRes.log);
+  drawField('field-sthc',sthcRes.asgn,fk);
+  makeChart('conv-sthc',sthcRes.history,'#EF9F27');
+}
+function resetSTHC(){
+  sthcRes=null;
+  ['sthc-log','sthc-status'].forEach(id=>document.getElementById(id).innerHTML='');
+  ['sthc-m-iter','sthc-m-score','sthc-m-acc'].forEach(id=>document.getElementById(id).textContent='—');
+  drawField('field-sthc',initialAssignment(),'442');
+  if(charts['conv-sthc']){ charts['conv-sthc'].destroy(); delete charts['conv-sthc']; }
+}
+
+/* ============================
+   COMPARE
+   ============================ */
+function runCompare(){
+  const fk=document.getElementById('cmp-form').value;
+  const mi=parseInt(document.getElementById('cmp-iter').value);
+  const runs=parseInt(document.getElementById('cmp-runs').value);
+  const temp=parseFloat(document.getElementById('cmp-temp').value);
+  const shcArr=[],sahcArr=[],sthcArr=[];
+  for(let r=0;r<runs;r++){
+    shcArr.push(simpleHC(fk,mi));
+    sahcArr.push(steepestAHC(fk,Math.min(mi,80)));
+    sthcArr.push(stochasticHC(fk,mi,temp));
+  }
+  const avg=arr=>arr.reduce((a,b)=>a+b,0)/arr.length;
+  const results=[
+    { name:'Simple HC', color:'#378ADD', best:Math.max(...shcArr.map(r=>r.score)), avg:avg(shcArr.map(r=>r.score)), conv:Math.round(avg(shcArr.map(r=>r.iter))), eval:Math.round(avg(shcArr.map(r=>r.iter))), note:'Rentan local optima', res:shcArr[0] },
+    { name:'Steepest-Ascent', color:'#7F77DD', best:Math.max(...sahcArr.map(r=>r.score)), avg:avg(sahcArr.map(r=>r.score)), conv:Math.round(avg(sahcArr.map(r=>r.iter))), eval:Math.round(avg(sahcArr.map(r=>r.totalEval||0))), note:'Paling konsisten per iterasi', res:sahcArr[0] },
+    { name:'Stochastic HC', color:'#EF9F27', best:Math.max(...sthcArr.map(r=>r.score)), avg:avg(sthcArr.map(r=>r.score)), conv:mi, eval:mi, note:'Bisa lolos local optima', res:sthcArr[0] }
+  ];
+  const maxBest = Math.max(...results.map(r=>r.best));
+  document.getElementById('cmp-tbody').innerHTML = results.map(r=>`
+    <tr>
+      <td style="font-weight:500"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${r.color};margin-right:6px;vertical-align:middle"></span>${r.name}</td>
+      <td class="${r.best===maxBest?'winner':''}">${r.best.toFixed(1)}${r.best===maxBest?' ★':''}</td>
+      <td>${r.avg.toFixed(1)}</td>
+      <td>${r.conv}</td>
+      <td>${r.eval}</td>
+      <td style="color:var(--text3);font-size:11px">${r.note}</td>
+    </tr>`).join('');
+
+  const minLen = Math.min(shcArr[0].history.length, sahcArr[0].history.length, sthcArr[0].history.length);
+  makeCmpChart('conv-cmp',[
+    { label:'Simple HC', data:shcArr[0].history, color:'#378ADD' },
+    { label:'Steepest-Ascent', data:sahcArr[0].history, color:'#7F77DD' },
+    { label:'Stochastic HC', data:sthcArr[0].history, color:'#EF9F27' }
+  ]);
+  drawField('cmpf-shc',results[0].res.asgn,fk);
+  drawField('cmpf-sahc',results[1].res.asgn,fk);
+  drawField('cmpf-sthc',results[2].res.asgn,fk);
+}
+
+/* ============================
+   TAB SWITCHING
+   ============================ */
+function sw(name){
+  const names = ['setup','simple','steepest','stochastic','compare'];
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',names[i]===name));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  setTimeout(()=>{
+    if(name==='simple') drawField('field-shc',shcRes?shcRes.asgn:initialAssignment(),'442');
+    if(name==='steepest') drawField('field-sahc',sahcRes?sahcRes.asgn:initialAssignment(),'442');
+    if(name==='stochastic') drawField('field-sthc',sthcRes?sthcRes.asgn:initialAssignment(),'442');
+  }, 50);
+}
+
+/* ============================
+   INIT
+   ============================ */
+initPlayers();
+renderPlayerTable();
+updateFormationInfo();
+setTimeout(()=>{
+  drawField('field-shc',initialAssignment(),'442');
+  drawField('field-sahc',initialAssignment(),'442');
+  drawField('field-sthc',initialAssignment(),'442');
+}, 150);
+</script>
+</body>
+</html>
